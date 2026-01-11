@@ -5,6 +5,7 @@ import { Progress } from '@/components/ui/progress';
 import Icon from '@/components/ui/icon';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useSound } from '@/hooks/useSound';
 
 interface Riddle {
   id: number;
@@ -116,6 +117,8 @@ const Index = () => {
   const [highScores, setHighScores] = useState<HighScore[]>([]);
   const [usedHints, setUsedHints] = useState<Set<number>>(new Set());
   const [showHint, setShowHint] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const sound = useSound();
 
   useEffect(() => {
     const savedScores = localStorage.getItem('riddleHighScores');
@@ -132,12 +135,19 @@ const Index = () => {
             handleTimeOut();
             return 0;
           }
+          if (soundEnabled) {
+            if (prev <= 6) {
+              sound.playUrgentTick();
+            } else if (prev % 5 === 0) {
+              sound.playTick();
+            }
+          }
           return prev - 1;
         });
       }, 1000);
       return () => clearInterval(timer);
     }
-  }, [gameState, timeLeft]);
+  }, [gameState, timeLeft, soundEnabled, sound]);
 
   const saveHighScore = (finalScore: number, levelsCompleted: number) => {
     const newScore: HighScore = {
@@ -155,6 +165,7 @@ const Index = () => {
   };
 
   const handleTimeOut = () => {
+    if (soundEnabled) sound.playGameOver();
     toast.error('Время вышло!');
     saveHighScore(score, currentLevel);
     setGameState('gameOver');
@@ -171,6 +182,7 @@ const Index = () => {
       return;
     }
 
+    if (soundEnabled) sound.playHint();
     setScore(prev => prev - HINT_COST);
     setUsedHints(prev => new Set([...prev, currentLevel]));
     setShowHint(true);
@@ -187,6 +199,7 @@ const Index = () => {
 
     setTimeout(() => {
       if (isCorrect) {
+        if (soundEnabled) sound.playCorrect();
         const timeBonus = Math.floor(timeLeft * 10);
         setScore(prev => prev + 100 + timeBonus);
         toast.success(`Правильно! +${100 + timeBonus} очков`);
@@ -198,6 +211,7 @@ const Index = () => {
           setGameState('victory');
         }
       } else {
+        if (soundEnabled) sound.playWrong();
         toast.error('Неправильно! Попробуй ещё раз');
         saveHighScore(score, currentLevel);
         setGameState('gameOver');
@@ -209,6 +223,7 @@ const Index = () => {
   };
 
   const startGame = () => {
+    if (soundEnabled) sound.playClick();
     setCurrentLevel(0);
     setScore(0);
     setTimeLeft(riddles[0].timeLimit);
@@ -218,6 +233,7 @@ const Index = () => {
   };
 
   const nextLevel = () => {
+    if (soundEnabled) sound.playLevelComplete();
     const newLevel = currentLevel + 1;
     setCurrentLevel(newLevel);
     setTimeLeft(riddles[newLevel].timeLimit);
@@ -275,6 +291,18 @@ const Index = () => {
               >
                 <Icon name="Play" size={24} className="mr-2" />
                 Начать игру
+              </Button>
+              
+              <Button
+                size="lg"
+                variant={soundEnabled ? "outline" : "secondary"}
+                onClick={() => {
+                  setSoundEnabled(!soundEnabled);
+                  if (!soundEnabled) sound.playClick();
+                }}
+                className="text-xl px-6 py-6 animate-slide-up"
+              >
+                <Icon name={soundEnabled ? "Volume2" : "VolumeX"} size={24} />
               </Button>
               
               <Dialog>
@@ -491,6 +519,7 @@ const Index = () => {
 
   if (gameState === 'victory') {
     const isNewRecord = highScores.length === 0 || score > highScores[0].score;
+    if (soundEnabled) sound.playVictory();
     
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary via-secondary to-accent p-4">
